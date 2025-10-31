@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>3D T-Shirt Designer (Download + Fonts)</title>
+  <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+
+  <!-- ✅ Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@700&family=Montserrat:wght@700&family=Poppins:wght@700&family=Oswald:wght@700&family=Lobster&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      font-family: "Poppins", sans-serif;
+      background: #f2f2f2;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 0;
+      padding: 20px;
+    }
+    #viewer {
+      width: 600px;
+      height: 600px;
+      background: #ddd;
+      border-radius: 10px;
+      margin-bottom: 20px;
+    }
+    .controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+    input, button, select {
+      padding: 8px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
+    button {
+      background: #0078ff;
+      color: #fff;
+      font-weight: bold;
+      cursor: pointer;
+      border: none;
+    }
+    button:hover { background: #005fcc; }
+    canvas {
+      border: 1px solid #ccc;
+      background: #fff;
+      border-radius: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>👕 3D T-Shirt Designer — Download & Font Options</h2>
+
+  <model-viewer id="viewer" src="tshirt.glb" camera-controls auto-rotate></model-viewer>
+
+  <div class="controls">
+    <input type="text" id="textInput" value="PTECH" />
+    <select id="fontSelect">
+      <option value="Arial">Arial</option>
+      <option value="Roboto">Roboto</option>
+      <option value="Montserrat">Montserrat</option>
+      <option value="Poppins" selected>Poppins</option>
+      <option value="Oswald">Oswald</option>
+      <option value="Lobster">Lobster</option>
+      <option value="Times New Roman">Times New Roman</option>
+      <option value="Courier New">Courier New</option>
+      <option value="Verdana">Verdana</option>
+    </select>
+    <input type="color" id="colorInput" value="#000000" />
+    <input type="range" id="fontSizeInput" min="30" max="200" value="100" />
+    <button id="uploadBtn">Upload Design</button>
+    <input type="file" id="designInput" accept="image/*" style="display:none" />
+    <button id="applyBtn">Apply to 3D Model</button>
+    <button id="downloadPNGBtn">Download PNG</button>
+    <button id="downloadGLBBtn">Download GLB</button>
+  </div>
+
+  <canvas id="textureCanvas" width="1024" height="1024" style="display:none"></canvas>
+  <canvas id="previewCanvas" width="512" height="512"></canvas>
+
+  <script>
+    const viewer = document.getElementById("viewer");
+    const textureCanvas = document.getElementById("textureCanvas");
+    const previewCanvas = document.getElementById("previewCanvas");
+    const ctx = textureCanvas.getContext("2d");
+    const pctx = previewCanvas.getContext("2d");
+
+    const textInput = document.getElementById("textInput");
+    const colorInput = document.getElementById("colorInput");
+    const fontSizeInput = document.getElementById("fontSizeInput");
+    const uploadBtn = document.getElementById("uploadBtn");
+    const designInput = document.getElementById("designInput");
+    const applyBtn = document.getElementById("applyBtn");
+    const fontSelect = document.getElementById("fontSelect");
+    const downloadPNGBtn = document.getElementById("downloadPNGBtn");
+    const downloadGLBBtn = document.getElementById("downloadGLBBtn");
+
+    let baseImage = new Image();
+    baseImage.src = "white_texture.png";
+    let modelReady = false;
+
+    let textX = 512, textY = 512;
+    let designImage = null;
+    let designX = 512, designY = 700;
+    let designWidth = 300, designHeight = 300;
+
+    let draggingText = false;
+    let draggingDesign = false;
+    let offsetX = 0, offsetY = 0;
+
+    baseImage.onload = () => drawCanvas();
+    viewer.addEventListener("load", () => { modelReady = true; console.log("🎨 Model ready!"); });
+
+    uploadBtn.addEventListener("click", () => designInput.click());
+    designInput.addEventListener("change", e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = evt => {
+        designImage = new Image();
+        designImage.onload = drawCanvas;
+        designImage.src = evt.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    function drawCanvas() {
+      ctx.clearRect(0, 0, textureCanvas.width, textureCanvas.height);
+      ctx.drawImage(baseImage, 0, 0, textureCanvas.width, textureCanvas.height);
+
+      const text = textInput.value;
+      ctx.save();
+      ctx.fillStyle = colorInput.value;
+      ctx.font = `bold ${fontSizeInput.value}px ${fontSelect.value}`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(text, textX, textY);
+      ctx.restore();
+
+      if (designImage) {
+        ctx.drawImage(designImage, designX - designWidth / 2, designY - designHeight / 2, designWidth, designHeight);
+      }
+      updatePreview();
+    }
+
+    function updatePreview() {
+      pctx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+      pctx.drawImage(textureCanvas, 0, 0, previewCanvas.width, previewCanvas.height);
+    }
+
+    previewCanvas.addEventListener("mousedown", e => {
+      const rect = previewCanvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+      const scaledTextX = (textX / 1024) * 512;
+      const scaledTextY = (textY / 1024) * 512;
+      const scaledDesignX = (designX / 1024) * 512;
+      const scaledDesignY = (designY / 1024) * 512;
+      const scaledDesignW = (designWidth / 1024) * 512;
+      const scaledDesignH = (designHeight / 1024) * 512;
+      const distText = Math.hypot(mouseX - scaledTextX, mouseY - scaledTextY);
+      const inDesign = designImage &&
+        mouseX > scaledDesignX - scaledDesignW / 2 &&
+        mouseX < scaledDesignX + scaledDesignW / 2 &&
+        mouseY > scaledDesignY - scaledDesignH / 2 &&
+        mouseY < scaledDesignY + scaledDesignH / 2;
+
+      if (distText < 100) {
+        draggingText = true;
+        offsetX = mouseX - scaledTextX;
+        offsetY = mouseY - scaledTextY;
+      } else if (inDesign) {
+        draggingDesign = true;
+        offsetX = mouseX - scaledDesignX;
+        offsetY = mouseY - scaledDesignY;
+      }
+    });
+
+    previewCanvas.addEventListener("mousemove", e => {
+      if (!draggingText && !draggingDesign) return;
+      const rect = previewCanvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+      if (draggingText) {
+        textX = ((mouseX - offsetX) / 512) * 1024;
+        textY = ((mouseY - offsetY) / 512) * 1024;
+      }
+      if (draggingDesign) {
+        designX = ((mouseX - offsetX) / 512) * 1024;
+        designY = ((mouseY - offsetY) / 512) * 1024;
+      }
+      drawCanvas();
+    });
+
+    previewCanvas.addEventListener("mouseup", () => { draggingText = draggingDesign = false; });
+    previewCanvas.addEventListener("mouseleave", () => { draggingText = draggingDesign = false; });
+
+    [textInput, colorInput, fontSizeInput, fontSelect].forEach(el => el.addEventListener("input", drawCanvas));
+
+    // ✅ Apply texture
+    applyBtn.addEventListener("click", async () => {
+      if (!modelReady) return alert("Model not ready yet!");
+      drawCanvas();
+
+      const flippedCanvas = document.createElement("canvas");
+      flippedCanvas.width = textureCanvas.width;
+      flippedCanvas.height = textureCanvas.height;
+      const fctx = flippedCanvas.getContext("2d");
+      fctx.translate(0, flippedCanvas.height);
+      fctx.scale(1, -1);
+      fctx.drawImage(textureCanvas, 0, 0);
+
+      const textureURL = flippedCanvas.toDataURL("image/png");
+      const texture = await viewer.createTexture(textureURL);
+
+      viewer.model.materials.forEach(mat => {
+        if (mat.pbrMetallicRoughness.baseColorTexture)
+          mat.pbrMetallicRoughness.baseColorTexture.setTexture(texture);
+        else
+          mat.pbrMetallicRoughness.baseColorTexture = texture;
+      });
+      console.log("✅ Applied texture to model");
+    });
+
+    // ✅ Download PNG
+    downloadPNGBtn.addEventListener("click", () => {
+      drawCanvas();
+      const link = document.createElement("a");
+      link.download = "tshirt_design.png";
+      link.href = textureCanvas.toDataURL("image/png");
+      link.click();
+    });
+
+    // ✅ Download GLB (with applied texture)
+    downloadGLBBtn.addEventListener("click", async () => {
+      if (!viewer.model) return alert("Model not ready yet!");
+      const glbBlob = await viewer.exportScene({ binary: true });
+      const link = document.createElement("a");
+      link.download = "tshirt_model.glb";
+      link.href = URL.createObjectURL(glbBlob);
+      link.click();
+    });
+  </script>
+</body>
+</html>
